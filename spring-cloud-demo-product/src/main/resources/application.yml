@@ -1,0 +1,37 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: spring-cloud-demo-product
+  datasource:
+    url: jdbc:mysql://localhost:3306/spring_cloud_demo?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+      discovery:
+        enabled: true
+        namespace: public
+      config:
+        enabled: false
+  # OAuth2 资源服务器配置
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI:http://localhost:8081/uaa/oauth2/jwks}
+
+logging:
+  level:
+    com.luban: DEBUG
+    org.springframework.security: DEBUG

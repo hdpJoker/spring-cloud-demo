@@ -1,0 +1,43 @@
+server:
+  port: 7573
+
+spring:
+  application:
+    name: spring-cloud-demo-gateway
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+      discovery:
+        enabled: true
+        namespace: public
+      config:
+        enabled: false
+    gateway:
+      routes:
+        # 登录页面路由 - 跳转到 UAA 登录页面
+        - id: login-route
+          uri: lb://spring-cloud-demo-uaa
+          predicates:
+            - Path=/login,/login/**
+          filters:
+            - RewritePath=/login(?<segment>.*), /uaa/login$\{segment}
+
+        # UAA 服务路由 (OAuth2 端点等)
+        - id: uaa-route
+          uri: lb://spring-cloud-demo-uaa
+          predicates:
+            - Path=/uaa/**
+
+        # Product 服务路由
+        - id: product-route
+          uri: lb://spring-cloud-demo-product
+          predicates:
+            - Path=/api/**
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+logging:
+  level:
+    com.luban: DEBUG
+    org.springframework.cloud.gateway: DEBUG

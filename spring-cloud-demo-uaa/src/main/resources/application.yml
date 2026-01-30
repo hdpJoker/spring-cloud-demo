@@ -1,0 +1,64 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /uaa
+
+spring:
+  application:
+    name: spring-cloud-demo-uaa
+  datasource:
+    url: jdbc:mysql://localhost:3306/spring_cloud_demo?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  # LDAP 配置
+  ldap:
+    urls: ldap://localhost:389
+    base: dc=luban-cae,dc=com
+    username: cn=admin,dc=luban-cae,dc=com
+    password: admin
+  # OAuth2 Client 配置 (GitHub)
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+            scope: read:user,user:email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          github:
+            authorization-uri: https://github.com/login/oauth/authorize
+            token-uri: https://github.com/login/oauth/access_token
+            user-info-uri: https://api.github.com/user
+            user-name-attribute: login
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+      discovery:
+        enabled: true
+        namespace: public
+      config:
+        enabled: false
+
+# 自定义 LDAP 配置
+ldap:
+  user-search-base: ""
+  user-search-filter: (uid={0})
+  group-search-base: ""
+  group-search-filter: (member={0})
+  role-attribute: employeeType
+
+logging:
+  level:
+    com.luban: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.ldap: DEBUG

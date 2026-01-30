@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: spring-cloud-demo-uaa
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+      config:
+        enabled: true
+        file-extension: yml
+      discovery:
+        enabled: true

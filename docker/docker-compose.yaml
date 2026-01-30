@@ -1,0 +1,186 @@
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: spring-cloud-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: spring_cloud_demo
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_password
+    # 仅内部访问，不对外暴露端口
+    expose:
+      - "3306"
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql-data:/var/lib/mysql
+    networks:
+      - spring-cloud-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nacos 服务 (服务注册与配置中心)
+  nacos:
+    image: zhusaidong/nacos-server-m1:2.0.3
+    container_name: spring-cloud-nacos
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+      PREFER_HOST_MODE: hostname
+    # 仅内部访问，不对外暴露端口
+    expose:
+      - "8848"
+      - "9848"
+    volumes:
+      - nacos-logs:/home/nacos/logs
+    networks:
+      - spring-cloud-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  # OpenLDAP 服务
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: spring-cloud-openldap
+    environment:
+      LDAP_DOMAIN: "luban-cae.com"
+      LDAP_ORGANISATION: "Luban CAE"
+      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_CONFIG_PASSWORD: "config"
+      LDAP_RFC2307BIS_SCHEMA: "false"
+      LDAP_BACKEND: "mdb"
+      LDAP_TLS: "false"
+      LDAP_LOG_LEVEL: "256"
+      LDAP_READONLY_USER: "false"
+      KEEP_EXISTING_CONFIG: "false"
+    # 仅内部访问，不对外暴露端口
+    expose:
+      - "389"
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d
+    networks:
+      - spring-cloud-network
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=luban-cae,dc=com", "-D", "cn=admin,dc=luban-cae,dc=com", "-w", "admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # LDAP 用户初始化 (一次性任务)
+  ldap-init:
+    image: osixia/openldap:1.5.0
+    container_name: spring-cloud-ldap-init
+    depends_on:
+      openldap:
+        condition: service_healthy
+    volumes:
+      - ./openldap/users.ldif:/tmp/users.ldif
+    networks:
+      - spring-cloud-network
+    entrypoint: >
+      /bin/bash -c "
+        echo 'Waiting for LDAP to be ready...';
+        sleep 5;
+        echo 'Adding LDAP users...';
+        ldapadd -x -H ldap://openldap:389 -D 'cn=admin,dc=luban-cae,dc=com' -w admin -f /tmp/users.ldif -c || true;
+        echo 'LDAP users added successfully!';
+      "
+
+  # UAA 认证服务
+  uaa:
+    build:
+      context: ../
+      dockerfile: docker/services/uaa/Dockerfile
+    container_name: spring-cloud-uaa
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/spring_cloud_demo?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_CLOUD_NACOS_SERVER_ADDR: nacos:8848
+      SPRING_LDAP_URLS: ldap://openldap:389
+      SPRING_LDAP_BASE: dc=luban-cae,dc=com
+      SPRING_LDAP_USERNAME: cn=admin,dc=luban-cae,dc=com
+      SPRING_LDAP_PASSWORD: admin
+      # GitHub OAuth2 配置（需要替换为实际的 Client ID 和 Secret）
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-your-github-client-id}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-your-github-client-secret}
+    # 仅内部访问，不对外暴露端口
+    expose:
+      - "8081"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      openldap:
+        condition: service_healthy
+
+  # Product 产品服务
+  product:
+    build:
+      context: ../
+      dockerfile: docker/services/product/Dockerfile
+    container_name: spring-cloud-product
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/spring_cloud_demo?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_CLOUD_NACOS_SERVER_ADDR: nacos:8848
+      # 配置 JWT 验证地址指向内部 UAA 服务
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://uaa:8081/uaa/oauth2/jwks
+    # 仅内部访问，不对外暴露端口
+    expose:
+      - "8082"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      uaa:
+        condition: service_started
+
+  # Gateway 网关服务 - 唯一对外暴露的服务
+  gateway:
+    build:
+      context: ../
+      dockerfile: docker/services/gateway/Dockerfile
+    container_name: spring-cloud-gateway
+    environment:
+      SPRING_CLOUD_NACOS_SERVER_ADDR: nacos:8848
+    # 唯一对外暴露的端口
+    ports:
+      - "7573:7573"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      nacos:
+        condition: service_healthy
+      uaa:
+        condition: service_started
+      product:
+        condition: service_started
+
+volumes:
+  mysql-data:
+  nacos-logs:
+  ldap-data:
+  ldap-config:
+
+networks:
+  spring-cloud-network:
+    driver: bridge

@@ -1,0 +1,32 @@
+dn: uid=ldap_user_1,dc=luban-cae,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: LDAP User 1
+sn: User
+uid: ldap_user_1
+userPassword: ldap_user_1
+employeeType: USER
+
+dn: uid=ldap_editor_1,dc=luban-cae,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: LDAP Editor 1
+sn: Editor
+uid: ldap_editor_1
+userPassword: ldap_editor_1
+employeeType: EDITOR
+
+dn: uid=ldap_adm_1,dc=luban-cae,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: LDAP Admin 1
+sn: Admin
+uid: ldap_adm_1
+userPassword: ldap_adm_1
+employeeType: PRODUCT_ADMIN
